@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_file, render_template
+from flask_cors import CORS
 import re
 from io import BytesIO
 
@@ -6,19 +7,32 @@ from io import BytesIO
 from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
 import matplotlib.pyplot as plt
+import plotly.express as px
 import pandas as pd
 import pickle
 import base64
+import logging
+from logging.handlers import RotatingFileHandler
+
 
 STOPWORDS = set(stopwords.words("english"))
 
 app = Flask(__name__)
+CORS(app)
+app = Flask(__name__)
 
+# Set up logging
+handler = RotatingFileHandler('flask_app.log', maxBytes=10000, backupCount=1)
+handler.setLevel(logging.INFO)
+app.logger.addHandler(handler)
 
 @app.route("/test", methods=["GET"])
 def test():
     return "Test request received successfully. Service is running."
 
+@app.route("/test_post", methods=["POST"])
+def test_post():
+    return "POST request received successfully"
 
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -110,28 +124,30 @@ def bulk_prediction(predictor, scaler, cv, data):
 
 
 def get_distribution_graph(data):
-    fig = plt.figure(figsize=(5, 5))
-    colors = ("green", "red")
-    wp = {"linewidth": 1, "edgecolor": "black"}
-    tags = data["Predicted sentiment"].value_counts()
-    explode = (0.01, 0.01)
-
-    tags.plot(
-        kind="pie",
-        autopct="%1.1f%%",
-        shadow=True,
-        colors=colors,
-        startangle=90,
-        wedgeprops=wp,
-        explode=explode,
-        title="Sentiment Distribution",
-        xlabel="",
-        ylabel="",
+    # Count the sentiment values
+    tags = data["Predicted sentiment"].value_counts().reset_index()
+    tags.columns = ["Sentiment", "Count"]
+    
+    # Create the pie chart
+    fig = px.pie(
+        tags, 
+        names="Sentiment", 
+        values="Count", 
+        title="Sentiment Distribution", 
+        color_discrete_sequence=["green", "red"]
+    )
+    
+    # Customize the pie chart appearance
+    fig.update_traces(
+        textposition="inside", 
+        textinfo="percent+label",
+        pull=[0.01, 0.01],  # Similar to explode
+        marker=dict(line=dict(color='black', width=1))
     )
 
+    # Save the figure to a BytesIO object
     graph = BytesIO()
-    plt.savefig(graph, format="png")
-    plt.close()
+    fig.write_image(graph, format="png")
 
     return graph
 
