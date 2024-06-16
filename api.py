@@ -141,7 +141,7 @@ def get_distribution_graph(data):
     fig.update_traces(
         textposition="inside", 
         textinfo="percent+label",
-        pull=[0.01, 0.01],  # Similar to explode
+        pull=[0.01, 0.01], 
         marker=dict(line=dict(color='black', width=1))
     )
 
