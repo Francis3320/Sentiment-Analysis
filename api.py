@@ -19,7 +19,7 @@ STOPWORDS = set(stopwords.words("english"))
 
 app = Flask(__name__)
 CORS(app)
-app = Flask(__name__)
+
 
 # Set up logging
 handler = RotatingFileHandler('flask_app.log', maxBytes=10000, backupCount=1)
