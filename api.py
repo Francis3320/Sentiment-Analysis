@@ -97,12 +97,24 @@ def single_prediction(predictor, scaler, cv, text_input):
 
 
 def bulk_prediction(predictor, scaler, cv, data):
-    corpus = []
     stemmer = PorterStemmer()
+    
+    if 'review' in data.columns:
+        column_to_analyze = 'review'
+    elif 'ratings' in data.columns:
+        column_to_analyze = 'ratings'
+    else:
+        raise ValueError("Dataset must contain either 'review' or 'ratings' column")
+
+    corpus = []
     for i in range(0, data.shape[0]):
-        review = re.sub("[^a-zA-Z]", " ", data.iloc[i]["Sentence"])
+        review = str(data.iloc[i][column_to_analyze])
+        if column_to_analyze == 'ratings':
+            review = TextBlob(review).words.join(' ')
+        else:
+            review = re.sub("[^a-zA-Z]", " ", review)
         review = review.lower().split()
-        review = [stemmer.stem(word) for word in review if not word in STOPWORDS]
+        review = [stemmer.stem(word) for word in review if word not in STOPWORDS]
         review = " ".join(review)
         corpus.append(review)
 
@@ -122,32 +134,29 @@ def bulk_prediction(predictor, scaler, cv, data):
 
     return predictions_csv, graph
 
-
 def get_distribution_graph(data):
-    # Count the sentiment values
-    tags = data["Predicted sentiment"].value_counts().reset_index()
-    tags.columns = ["Sentiment", "Count"]
-    
-    # Create the pie chart
-    fig = px.pie(
-        tags, 
-        names="Sentiment", 
-        values="Count", 
-        title="Sentiment Distribution", 
-        color_discrete_sequence=["green", "red"]
-    )
-    
-    # Customize the pie chart appearance
-    fig.update_traces(
-        textposition="inside", 
-        textinfo="percent+label",
-        pull=[0.01, 0.01], 
-        marker=dict(line=dict(color='black', width=1))
+    fig = plt.figure(figsize=(5, 5))
+    colors = ("green", "red", "blue")
+    wp = {"linewidth": 1, "edgecolor": "black"}
+    tags = data["Predicted sentiment"].value_counts()
+    explode = (0.01, 0.01, 0.01)
+
+    tags.plot(
+        kind="pie",
+        autopct="%1.1f%%",
+        shadow=True,
+        colors=colors,
+        startangle=90,
+        wedgeprops=wp,
+        explode=explode,
+        title="Sentiment Distribution",
+        xlabel="",
+        ylabel="",
     )
 
-    # Save the figure to a BytesIO object
     graph = BytesIO()
-    fig.write_image(graph, format="png")
+    plt.savefig(graph, format="png")
+    plt.close()
 
     return graph
 
