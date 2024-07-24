@@ -11,6 +11,23 @@
   <link rel="stylesheet"
     href="https://cdn.jsdelivr.net/gh/creativetimofficial/tailwind-starter-kit/compiled-tailwind.min.css" />
   <title>Amazon Alexa Reviews Analysis</title>
+  <style>
+    /* Style for loading spinner */
+    #loading {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1000;
+      text-align: center;
+    }
+
+    #loading img {
+      width: 50px;
+      height: 50px;
+    }
+  </style>
 </head>
 
 <body class="text-gray-800 antialiased">
@@ -56,16 +73,13 @@
         </svg>
       </div>
       <div class="flex flex-col items-center justify-center">
-        <h1 class="text-5xl font-semibold  py-2 ">Text Sentiment Prediction</h1>
+        <h1 class="text-5xl font-semibold py-2 ">Text Sentiment Prediction</h1>
       </div>
       <div class="container mx-auto px-4 py-24">
 
         <div class="items-center flex flex-wrap">
           <div class="w-full md:w-4/12 ml-auto mr-auto px-4">
             <form id="predictionForm">
-
-
-
 
               <div class="container max-w-full mx-auto md:py-24 px-6">
                 <div class="max-w-sm mx-auto px-6">
@@ -99,8 +113,6 @@
                           </div>
                         </form>
 
-
-
                       </div>
                     </div>
                   </div>
@@ -110,15 +122,17 @@
           </div>
           <div class="w-full md:w-4/12 ml-auto mr-auto px-4">
             <div>
-              <h1 class="text-4xl underline underline-offset-8  ">Prediction Result</h1>
+              <h1 class="text-4xl underline underline-offset-8">Prediction Result</h1>
               <div class="p-4 m-2 border">
-                <div id="predictionResult"></div>
-
+                <div id="generalSentimentResult"></div>
+                <div id="generalSentimentScore"></div>
+                <div id="specificSentimentResult"></div>
+                <div id="specificSentimentScore"></div>
               </div>
             </div>
             <div class="pt-6">
-              <h1 class="text-4xl underline underline-offset-8  ">graph Result</h1>
-              <div class="p-4 m-2 border  ">
+              <h1 class="text-4xl underline underline-offset-8">Graph Result</h1>
+              <div class="p-4 m-2 border">
                 <div id="graphContainer"></div>
               </div>
             </div>
@@ -128,13 +142,9 @@
               Download Predictions
             </button>
           </div>
-
         </div>
       </div>
     </section>
-
-
-
   </main>
   <footer class="relative bg-gray-900 pt-8 pb-6">
     <div class="bottom-auto top-0 left-0 right-0 w-full absolute pointer-events-none overflow-hidden -mt-20"
@@ -158,41 +168,45 @@
     </div>
   </footer>
 
+  <div id="loading">
+    <img src="https://i.imgur.com/llF5iyc.gif" alt="Loading...">
+    <p>Loading...</p>
+  </div>
+
   <script>
     function predict() {
-      // Check if CSV file is present
+      // Show the loading spinner
+      document.getElementById("loading").style.display = "block";
+
       var csvFileInput = document.getElementById("csvFileInput");
       var textInput = document.getElementById("textInput");
-      var predictionResult = document.getElementById("predictionResult");
+      var generalSentimentResult = document.getElementById("generalSentimentResult");
+      var generalSentimentScore = document.getElementById("generalSentimentScore");
+      var specificSentimentResult = document.getElementById("specificSentimentResult");
+      var specificSentimentScore = document.getElementById("specificSentimentScore");
       var graphContainer = document.getElementById("graphContainer");
-  
+
       if (csvFileInput.files.length > 0) {
         // Upload CSV file
         var formData = new FormData();
         formData.append("file", csvFileInput.files[0]);
-  
+
         fetch("http://localhost:5000/predict", {
           method: "POST",
           body: formData
         })
           .then(response => {
             if (response.headers.get('X-Graph-Exists') === 'true') {
-              console.log("Graph")
               var graphData = response.headers.get('X-Graph-Data');
               displayGraph(graphData);
             }
-  
+
             return response.blob();
           })
           .then(blob => {
-            console.log("Blob:", blob);
-  
             document.getElementById("downloadBtn").style.display = "block";
             document.getElementById("downloadBtn").onclick = function () {
-              console.log("Downloading...");
               var url = URL.createObjectURL(blob);
-              console.log("URL:", url); 
-  
               var a = document.createElement("a");
               a.href = url;
               a.download = "Predictions.csv";
@@ -203,8 +217,12 @@
           })
           .catch(error => {
             console.error("Error:", error);
+          })
+          .finally(() => {
+            // Hide the loading spinner
+            document.getElementById("loading").style.display = "none";
           });
-  
+
       } else if (textInput.value.trim() !== "") {
         // Predict on single sentence
         fetch("http://localhost:5000/predict", {
@@ -216,18 +234,23 @@
         })
           .then(response => response.json())
           .then(data => {
-            console.log(data)
-            predictionResult.innerHTML = "Predicted sentiment: " + data.prediction;
+            generalSentimentResult.innerHTML = "General Sentiment: " + data.general_sentiment;
+            generalSentimentScore.innerHTML = "General Sentiment Score: " + data.general_score;
+            specificSentimentResult.innerHTML = "Specific Sentiment: " + data.specific_sentiment;
+            specificSentimentScore.innerHTML = "Specific Sentiment Score: " + data.specific_score;
+          })
+          .finally(() => {
+            // Hide the loading spinner
+            document.getElementById("loading").style.display = "none";
           });
       }
     }
-  
+
     function downloadPredictions() {
-      console.log("Download prediction")
+      // Placeholder function if needed later
     }
-  
+
     function displayGraph(graphData) {
-      predictionResult.innerHTML = "";
       var graphUrl = "data:image/png;base64," + graphData;
       var img = document.createElement('img');
       img.src = graphUrl;
@@ -235,4 +258,5 @@
     }
   </script>
 </body>
+
 </html>
