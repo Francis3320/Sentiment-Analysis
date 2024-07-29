@@ -128,6 +128,7 @@
                 <div id="generalSentimentScore"></div>
                 <div id="specificSentimentResult"></div>
                 <div id="specificSentimentScore"></div>
+                <div id="subjectivityResult"></div>
               </div>
             </div>
             <div class="pt-6">
@@ -184,6 +185,7 @@
       var generalSentimentScore = document.getElementById("generalSentimentScore");
       var specificSentimentResult = document.getElementById("specificSentimentResult");
       var specificSentimentScore = document.getElementById("specificSentimentScore");
+      var subjectivityResult = document.getElementById("subjectivityResult");
       var graphContainer = document.getElementById("graphContainer");
 
       if (csvFileInput.files.length > 0) {
@@ -238,6 +240,7 @@
             generalSentimentScore.innerHTML = "General Sentiment Score: " + data.general_score;
             specificSentimentResult.innerHTML = "Specific Sentiment: " + data.specific_sentiment;
             specificSentimentScore.innerHTML = "Specific Sentiment Score: " + data.specific_score;
+            subjectivityResult.innerHTML = "Subjectivity: " + data.subjectivity;
           })
           .finally(() => {
             // Hide the loading spinner

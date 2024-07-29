@@ -14,6 +14,8 @@ from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from tqdm import tqdm
 import random
 import pickle
+from collections import Counter
+from textblob import TextBlob
 
 STOPWORDS = set(stopwords.words("english"))
 
@@ -96,12 +98,13 @@ def predict():
         elif "text" in request.json:
             # Single string prediction
             text_input = request.json["text"]
-            general_sentiment, specific_sentiment, specific_score = single_prediction(text_input)
+            general_sentiment, specific_sentiment, specific_score, subjectivity = single_prediction(text_input)
 
             return jsonify({
                 "general_sentiment": general_sentiment,
                 "specific_sentiment": specific_sentiment,
-                "specific_score": specific_score
+                "specific_score": specific_score,
+                "subjectivity": subjectivity
             })
 
     except Exception as e:
@@ -121,6 +124,9 @@ NEUTRAL_SENTIMENTS = [
     "Neutral", "Indifferent", "Ambivalent", "Impartial", "Unbiased", "Detached", "Uninvolved",
     "Dispassionate", "Noncommittal", "Objective"
 ]
+
+def analyze_subjectivity(text):
+    return TextBlob(text).sentiment.subjectivity
 
 def single_prediction(text_input):
     # General sentiment prediction using Hugging Face model
@@ -157,7 +163,10 @@ def single_prediction(text_input):
     else:
         specific_sentiment = random.choice(NEUTRAL_SENTIMENTS)
 
-    return general_sentiment, specific_sentiment, specific_score
+    # Calculate subjectivity
+    subjectivity = analyze_subjectivity(text_input)
+
+    return general_sentiment, specific_sentiment, specific_score, subjectivity
 
 senti_analyzer = SentimentIntensityAnalyzer()
 
