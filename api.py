@@ -12,6 +12,8 @@ from logging.handlers import RotatingFileHandler
 from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from tqdm import tqdm
+import random
+import pickle
 
 STOPWORDS = set(stopwords.words("english"))
 
@@ -22,6 +24,15 @@ CORS(app)
 handler = RotatingFileHandler('flask_app.log', maxBytes=10000, backupCount=1)
 handler.setLevel(logging.INFO)
 app.logger.addHandler(handler)
+
+with open('Models/model_xgb.pkl', 'rb') as f:
+    xgboost_model = pickle.load(f)
+
+with open('Models/countVectorizer.pkl', 'rb') as f:
+    vectorizer = pickle.load(f)
+
+with open('Models/scaler.pkl', 'rb') as f:
+    scaler = pickle.load(f)
 
 # Load the Hugging Face sentiment analysis pipeline for general sentiment
 hf_tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
@@ -35,9 +46,9 @@ twitter_sentiment_pipeline = pipeline("sentiment-analysis", model=twitter_sentim
 
 # Define the specific sentiment mapping
 specific_sentiment_mapping = {
-    "Positive": ["joy", "love", "admiration", "approval", "amusement", "excitement", "optimism", "gratitude", "relief", "pride"],
-    "Negative": ["anger", "disgust", "fear", "sadness", "disappointment", "embarrassment", "frustration", "guilt", "shame"],
-    "Neutral": ["neutral", "surprise", "curiosity"]
+    "Positive": ["joy", "surprise", "optimistic", "content", "trust"],
+    "Negative": ["anger", "disgust", "fear", "sadness"],
+    "Neutral": ["neutral", "curiosity"]
 }
 
 @app.route("/test", methods=["GET"])
@@ -96,27 +107,55 @@ def predict():
     except Exception as e:
         return jsonify({"error": str(e)})
 
+POSITIVE_SENTIMENTS = [
+    "Joy", "Excited", "Optimistic", "Content", "Happy", "Pleased", "Delighted", "Satisfied",
+    "Enthusiastic", "Cheerful", "Elated", "Grateful", "Inspired", "Proud", "Confident"
+]
+
+NEGATIVE_SENTIMENTS = [
+    "Sad", "Angry", "Frustrated", "Disappointed", "Worried", "Annoyed", "Displeased", "Upset",
+    "Irritated", "Furious", "Anxious", "Discouraged", "Stressed", "Depressed", "Outraged"
+]
+
+NEUTRAL_SENTIMENTS = [
+    "Neutral", "Indifferent", "Ambivalent", "Impartial", "Unbiased", "Detached", "Uninvolved",
+    "Dispassionate", "Noncommittal", "Objective"
+]
+
 def single_prediction(text_input):
     # General sentiment prediction using Hugging Face model
     hf_result = hf_sentiment_pipeline(text_input)[0]
     general_sentiment = hf_result['label']
     general_score = hf_result['score']
     
-    # Specific sentiment prediction using Twitter RoBERTa model
-    twitter_results = twitter_sentiment_pipeline(text_input)
-    twitter_result = max(twitter_results, key=lambda x: x['score'])  # Choose the result with the highest score
-    specific_sentiment = twitter_result['label']
-    specific_score = twitter_result['score']
-
-    # Map general sentiment to specific sentiments dynamically
-    specific_sentiment_category = "Neutral"  # Default to Neutral if not found
+    # Use Twitter RoBERTa model to get a more specific sentiment score
+    twitter_result = twitter_sentiment_pipeline(text_input)[0]
+    
+    # Adjust the specific score based on the general sentiment
     if general_sentiment == 'POSITIVE':
-        specific_sentiment_category = "Positive"
+        specific_score = twitter_result['score']
     elif general_sentiment == 'NEGATIVE':
-        specific_sentiment_category = "Negative"
-
-    if specific_sentiment.lower() not in map(str.lower, specific_sentiment_mapping[specific_sentiment_category]):
-        specific_sentiment = specific_sentiment_mapping[specific_sentiment_category][0]  # Default to the first sentiment in the category
+        specific_score = 1 - twitter_result['score']  # Invert the score for negative sentiment
+    else:
+        specific_score = 0.5  # Neutral case
+    
+    # Determine specific sentiment based on general sentiment and score
+    if general_sentiment == 'POSITIVE':
+        if specific_score >= 0.8:
+            specific_sentiment = random.choice(POSITIVE_SENTIMENTS[:5])  # Stronger positive emotions
+        elif 0.6 <= specific_score < 0.8:
+            specific_sentiment = random.choice(POSITIVE_SENTIMENTS[5:10])  # Moderate positive emotions
+        else:
+            specific_sentiment = random.choice(POSITIVE_SENTIMENTS[10:])  # Milder positive emotions
+    elif general_sentiment == 'NEGATIVE':
+        if specific_score >= 0.8:
+            specific_sentiment = random.choice(NEGATIVE_SENTIMENTS[:5])  # Stronger negative emotions
+        elif 0.6 <= specific_score < 0.8:
+            specific_sentiment = random.choice(NEGATIVE_SENTIMENTS[5:10])  # Moderate negative emotions
+        else:
+            specific_sentiment = random.choice(NEGATIVE_SENTIMENTS[10:])  # Milder negative emotions
+    else:
+        specific_sentiment = random.choice(NEUTRAL_SENTIMENTS)
 
     return general_sentiment, specific_sentiment, specific_score
 
@@ -133,7 +172,7 @@ def perform_sentiment_analysis(chunk, column_to_analyze):
         else:
             review = re.sub("[^a-zA-Z]", " ", review)
         review = review.lower().split()
-        review = [stemmer.stem(word) for word in review if word not in stopwords.words('english')]
+        review = [stemmer.stem(word) for word in review if word not in STOPWORDS]
         review = " ".join(review)
 
         # Perform sentiment analysis using NLTK's VADER
