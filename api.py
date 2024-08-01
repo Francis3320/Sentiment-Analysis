@@ -125,9 +125,6 @@ NEUTRAL_SENTIMENTS = [
     "Dispassionate", "Noncommittal", "Objective"
 ]
 
-def analyze_subjectivity(text):
-    return TextBlob(text).sentiment.subjectivity
-
 def single_prediction(text_input):
     # General sentiment prediction using Hugging Face model
     hf_result = hf_sentiment_pipeline(text_input)[0]
@@ -162,10 +159,11 @@ def single_prediction(text_input):
             specific_sentiment = random.choice(NEGATIVE_SENTIMENTS[10:])  # Milder negative emotions
     else:
         specific_sentiment = random.choice(NEUTRAL_SENTIMENTS)
-
-    # Calculate subjectivity
-    subjectivity = analyze_subjectivity(text_input)
-
+    
+    # Subjectivity analysis using TextBlob
+    blob = TextBlob(text_input)
+    subjectivity = blob.sentiment.subjectivity
+    
     return general_sentiment, specific_sentiment, specific_score, subjectivity
 
 senti_analyzer = SentimentIntensityAnalyzer()
@@ -173,6 +171,7 @@ senti_analyzer = SentimentIntensityAnalyzer()
 def perform_sentiment_analysis(chunk, column_to_analyze):
     stemmer = PorterStemmer()
     corpus = []
+    subjectivities = []
 
     for i in range(0, chunk.shape[0]):
         review = str(chunk.iloc[i][column_to_analyze])
@@ -194,9 +193,15 @@ def perform_sentiment_analysis(chunk, column_to_analyze):
         else:
             sentiment = 'Neutral'
 
+        # Subjectivity analysis using TextBlob
+        blob = TextBlob(chunk.iloc[i][column_to_analyze])
+        subjectivity = blob.sentiment.subjectivity
+
         corpus.append(sentiment)
+        subjectivities.append(subjectivity)
 
     chunk["Predicted sentiment"] = corpus
+    chunk["Subjectivity"] = subjectivities
     return chunk
 
 def find_text_column(data):
@@ -214,7 +219,7 @@ def bulk_prediction(data, text_column, chunk_size=300):
 
     for chunk in tqdm(chunks, total=(len(data) // chunk_size) + 1):
         # Apply sentiment analysis to each chunk
-        chunk[['Sentiment Predictions', 'Sentiment Score']] = chunk[text_column].apply(lambda x: analyze_sentiment(x), result_type='expand')
+        chunk[['Sentiment Predictions', 'Sentiment Score', 'Subjectivity']] = chunk[text_column].apply(lambda x: analyze_sentiment(x), result_type='expand')
         processed_chunks.append(chunk)
 
     # Concatenate all processed chunks into a single DataFrame
@@ -234,7 +239,12 @@ def analyze_sentiment(text):
     result = hf_sentiment_pipeline(text)[0]
     sentiment = result['label']
     score = result['score']
-    return pd.Series([sentiment, score], index=['Sentiment Predictions', 'Sentiment Score'])
+    
+    # Subjectivity analysis using TextBlob
+    blob = TextBlob(text)
+    subjectivity = blob.sentiment.subjectivity
+    
+    return pd.Series([sentiment, score, subjectivity], index=['Sentiment Predictions', 'Sentiment Score', 'Subjectivity'])
 
 def get_distribution_graph(data):
     fig, ax = plt.subplots(figsize=(5, 5))
