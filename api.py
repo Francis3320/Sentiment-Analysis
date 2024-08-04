@@ -53,6 +53,13 @@ specific_sentiment_mapping = {
     "Neutral": ["neutral", "curiosity"]
 }
 
+# Define keywords for aspect-based sentiment analysis
+aspect_keywords = {
+    'Delivery': ['delivery', 'shipping', 'shipment', 'delivered'],
+    'Product Quality': ['quality', 'product', 'item', 'goods'],
+    'Usage': ['students', 'elderly', 'children']
+}
+
 @app.route("/test", methods=["GET"])
 def test():
     return "Test request received successfully. Service is running."
@@ -98,9 +105,11 @@ def predict():
         elif "text" in request.json:
             # Single string prediction
             text_input = request.json["text"]
+            aspect = identify_aspect(text_input)
             general_sentiment, specific_sentiment, specific_score, subjectivity = single_prediction(text_input)
 
             return jsonify({
+                "aspect": aspect,
                 "general_sentiment": general_sentiment,
                 "specific_sentiment": specific_sentiment,
                 "specific_score": specific_score,
@@ -112,18 +121,26 @@ def predict():
 
 POSITIVE_SENTIMENTS = [
     "Joy", "Excited", "Optimistic", "Content", "Happy", "Pleased", "Delighted", "Satisfied",
-    "Enthusiastic", "Cheerful", "Elated", "Grateful", "Inspired", "Proud", "Confident"
+    "Cheerful", "Grateful"
 ]
 
 NEGATIVE_SENTIMENTS = [
-    "Sad", "Angry", "Frustrated", "Disappointed", "Worried", "Annoyed", "Displeased", "Upset",
-    "Irritated", "Furious", "Anxious", "Discouraged", "Stressed", "Depressed", "Outraged"
+    "Sad", "Angry", "Frustrated", "Disappointed", "Worried", "Annoyed", "Displeased", "Upset"
 ]
 
 NEUTRAL_SENTIMENTS = [
     "Neutral", "Indifferent", "Ambivalent", "Impartial", "Unbiased", "Detached", "Uninvolved",
     "Dispassionate", "Noncommittal", "Objective"
 ]
+
+def identify_aspect(text):
+    aspect = "General"
+    for key, keywords in aspect_keywords.items():
+        for keyword in keywords:
+            if keyword.lower() in text.lower():
+                aspect = key
+                break
+    return aspect
 
 def single_prediction(text_input):
     # General sentiment prediction using Hugging Face model
