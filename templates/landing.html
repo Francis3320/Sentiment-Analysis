@@ -89,13 +89,6 @@
                         <form class="mt-8" id="predictionForm">
                           <div class="mx-auto max-w-lg ">
                             <div class="py-1">
-                              <span class="px-1 text-sm text-gray-600">Upload your CSV file</span>
-                              <input placeholder="" type="file" id="csvFileInput" accept=".csv"
-                                class="text-md block px-3 py-2 rounded-lg w-full
-                                   bg-white border-2 border-gray-300 placeholder-gray-600 shadow-md focus:placeholder-gray-500 focus:bg-white focus:border-gray-600 focus:outline-none">
-                            </div>
-
-                            <div class="py-1">
                               <span class="px-1 text-sm text-gray-600">Text for Prediction</span>
                               <textarea
                                 class="text-md block px-3 py-2 rounded-lg w-full 
@@ -132,17 +125,6 @@
                 <div id="aspectResult"></div> 
               </div>
             </div>
-            <div class="pt-6">
-              <h1 class="text-4xl underline underline-offset-8">Graph Result</h1>
-              <div class="p-4 m-2 border">
-                <div id="graphContainer"></div>
-              </div>
-            </div>
-            <button id="downloadBtn" style="display:none" onclick="downloadPredictions()" class="mt-3 text-lg font-semibold
-            bg-gray-800 w-full text-white rounded-lg
-     px-6 py-3 mt-10 block shadow-xl hover:text-white hover:bg-black">
-              Download Predictions
-            </button>
           </div>
         </div>
       </div>
@@ -180,54 +162,15 @@
       // Show the loading spinner
       document.getElementById("loading").style.display = "block";
 
-      var csvFileInput = document.getElementById("csvFileInput");
       var textInput = document.getElementById("textInput");
       var generalSentimentResult = document.getElementById("generalSentimentResult");
       var generalSentimentScore = document.getElementById("generalSentimentScore");
       var specificSentimentResult = document.getElementById("specificSentimentResult");
       var specificSentimentScore = document.getElementById("specificSentimentScore");
       var subjectivityResult = document.getElementById("subjectivityResult");
-      var aspectResult = document.getElementById("aspectResult"); // Added aspect result variable
-      var graphContainer = document.getElementById("graphContainer");
+      var aspectResult = document.getElementById("aspectResult");
 
-      if (csvFileInput.files.length > 0) {
-        // Upload CSV file
-        var formData = new FormData();
-        formData.append("file", csvFileInput.files[0]);
-
-        fetch("http://localhost:5000/predict", {
-          method: "POST",
-          body: formData
-        })
-          .then(response => {
-            if (response.headers.get('X-Graph-Exists') === 'true') {
-              var graphData = response.headers.get('X-Graph-Data');
-              displayGraph(graphData);
-            }
-
-            return response.blob();
-          })
-          .then(blob => {
-            document.getElementById("downloadBtn").style.display = "block";
-            document.getElementById("downloadBtn").onclick = function () {
-              var url = URL.createObjectURL(blob);
-              var a = document.createElement("a");
-              a.href = url;
-              a.download = "Predictions.csv";
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-            };
-          })
-          .catch(error => {
-            console.error("Error:", error);
-          })
-          .finally(() => {
-            // Hide the loading spinner
-            document.getElementById("loading").style.display = "none";
-          });
-
-      } else if (textInput.value.trim() !== "") {
+      if (textInput.value.trim() !== "") {
         // Predict on single sentence
         fetch("http://localhost:5000/predict", {
           method: "POST",
@@ -250,17 +193,6 @@
             document.getElementById("loading").style.display = "none";
           });
       }
-    }
-
-    function downloadPredictions() {
-      // Placeholder function if needed later
-    }
-
-    function displayGraph(graphData) {
-      var graphUrl = "data:image/png;base64," + graphData;
-      var img = document.createElement('img');
-      img.src = graphUrl;
-      graphContainer.appendChild(img);
     }
   </script>
 </body>

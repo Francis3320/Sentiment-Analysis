@@ -8,10 +8,10 @@ prediction_endpoint = "http://127.0.0.1:5000/predict"
 
 st.title("Text Sentiment Predictor")
 
-uploaded_file = st.file_uploader(
-    "Choose a CSV file for bulk prediction - Upload the file and click on Predict",
-    type="csv",
-)
+#uploaded_file = st.file_uploader(
+   # "Choose a CSV file for bulk prediction - Upload the file and click on Predict",
+   # type="csv",
+#)
 
 # Text input for sentiment prediction
 user_input = st.text_input("Enter text and click on Predict", "")

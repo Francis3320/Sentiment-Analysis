@@ -27,6 +27,7 @@ handler = RotatingFileHandler('flask_app.log', maxBytes=10000, backupCount=1)
 handler.setLevel(logging.INFO)
 app.logger.addHandler(handler)
 
+#Load models for general sentiment
 with open('Models/model_xgb.pkl', 'rb') as f:
     xgboost_model = pickle.load(f)
 
@@ -36,7 +37,6 @@ with open('Models/countVectorizer.pkl', 'rb') as f:
 with open('Models/scaler.pkl', 'rb') as f:
     scaler = pickle.load(f)
 
-# Load the Hugging Face sentiment analysis pipeline for general sentiment
 hf_tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
 hf_model = AutoModelForSequenceClassification.from_pretrained("distilbert-base-uncased-finetuned-sst-2-english")
 hf_sentiment_pipeline = pipeline("sentiment-analysis", model=hf_model, tokenizer=hf_tokenizer)
