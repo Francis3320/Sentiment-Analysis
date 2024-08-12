@@ -27,7 +27,7 @@ handler = RotatingFileHandler('flask_app.log', maxBytes=10000, backupCount=1)
 handler.setLevel(logging.INFO)
 app.logger.addHandler(handler)
 
-#Load models for general sentiment
+# Load models for general sentiment
 with open('Models/model_xgb.pkl', 'rb') as f:
     xgboost_model = pickle.load(f)
 
@@ -120,7 +120,7 @@ def predict():
         return jsonify({"error": str(e)})
 
 POSITIVE_SENTIMENTS = [
-    "Joy", "Excited", "Optimistic", "Content", "Happy", "Pleased", "Delighted", "Satisfied",
+    "Excited", "Optimistic", "Content", "Happy", "Pleased", "Delighted", "Satisfied",
     "Cheerful", "Grateful"
 ]
 
@@ -143,45 +143,72 @@ def identify_aspect(text):
     return aspect
 
 def single_prediction(text_input):
-    # General sentiment prediction using Hugging Face model
+    # Preprocess the input text for XGBoost
+    processed_text = preprocess_text(text_input)
+    xgboost_features = vectorizer.transform([processed_text])
+    xgboost_features = scaler.transform(xgboost_features.toarray())
+
+    # Predict sentiment using XGBoost
+    xgboost_prediction = xgboost_model.predict(xgboost_features)[0]
+    xgboost_proba = xgboost_model.predict_proba(xgboost_features).max()
+
+    # Predict sentiment using Hugging Face model
     hf_result = hf_sentiment_pipeline(text_input)[0]
-    general_sentiment = hf_result['label']
-    general_score = hf_result['score']
-    
-    # Use Twitter RoBERTa model to get a more specific sentiment score
-    twitter_result = twitter_sentiment_pipeline(text_input)[0]
-    
-    # Adjust the specific score based on the general sentiment
-    if general_sentiment == 'POSITIVE':
-        specific_score = twitter_result['score']
-    elif general_sentiment == 'NEGATIVE':
-        specific_score = 1 - twitter_result['score']  # Invert the score for negative sentiment
+    hf_sentiment = hf_result['label']
+    hf_score = hf_result['score']
+
+    # Map XGBoost prediction to corresponding sentiment label
+    if xgboost_prediction == 1:
+        xgboost_sentiment = 'POSITIVE'
+    elif xgboost_prediction == 0:
+        xgboost_sentiment = 'NEGATIVE'
     else:
-        specific_score = 0.5  # Neutral case
-    
-    # Determine specific sentiment based on general sentiment and score
-    if general_sentiment == 'POSITIVE':
-        if specific_score >= 0.8:
-            specific_sentiment = random.choice(POSITIVE_SENTIMENTS[:5])  # Stronger positive emotions
-        elif 0.6 <= specific_score < 0.8:
-            specific_sentiment = random.choice(POSITIVE_SENTIMENTS[5:10])  # Moderate positive emotions
-        else:
-            specific_sentiment = random.choice(POSITIVE_SENTIMENTS[10:])  # Milder positive emotions
-    elif general_sentiment == 'NEGATIVE':
-        if specific_score >= 0.8:
-            specific_sentiment = random.choice(NEGATIVE_SENTIMENTS[:5])  # Stronger negative emotions
-        elif 0.6 <= specific_score < 0.8:
-            specific_sentiment = random.choice(NEGATIVE_SENTIMENTS[5:10])  # Moderate negative emotions
-        else:
-            specific_sentiment = random.choice(NEGATIVE_SENTIMENTS[10:])  # Milder negative emotions
+        xgboost_sentiment = 'NEUTRAL'
+
+    # Combine predictions (example: weighted average of scores)
+    combined_score = (hf_score + xgboost_proba) / 2
+    if hf_sentiment == xgboost_sentiment:
+        general_sentiment = hf_sentiment
     else:
-        specific_sentiment = random.choice(NEUTRAL_SENTIMENTS)
-    
+        # Use weighted logic or prioritize one model if they differ
+        general_sentiment = hf_sentiment if hf_score >= xgboost_proba else xgboost_sentiment
+
+    # Perform specific sentiment mapping based on the combined sentiment
+    specific_sentiment, specific_score = map_specific_sentiment(general_sentiment, combined_score)
+
     # Subjectivity analysis using TextBlob
     blob = TextBlob(text_input)
     subjectivity = blob.sentiment.subjectivity
-    
+
     return general_sentiment, specific_sentiment, specific_score, subjectivity
+
+def preprocess_text(text):
+    # Preprocess text for XGBoost model (e.g., stemming, removing stopwords)
+    review = re.sub("[^a-zA-Z]", " ", text)
+    review = review.lower().split()
+    review = [PorterStemmer().stem(word) for word in review if word not in STOPWORDS]
+    return " ".join(review)
+
+def map_specific_sentiment(general_sentiment, score):
+    # Determine specific sentiment based on general sentiment and score
+    if general_sentiment == 'POSITIVE':
+        if score >= 0.8:
+            specific_sentiment = random.choice(POSITIVE_SENTIMENTS[:5])
+        elif 0.6 <= score < 0.8:
+            specific_sentiment = random.choice(POSITIVE_SENTIMENTS[5:10])
+        else:
+            specific_sentiment = random.choice(POSITIVE_SENTIMENTS[10:])
+    elif general_sentiment == 'NEGATIVE':
+        if score >= 0.8:
+            specific_sentiment = random.choice(NEGATIVE_SENTIMENTS[:5])
+        elif 0.6 <= score < 0.8:
+            specific_sentiment = random.choice(NEGATIVE_SENTIMENTS[5:10])
+        else:
+            specific_sentiment = random.choice(NEGATIVE_SENTIMENTS[10:])
+    else:
+        specific_sentiment = random.choice(NEUTRAL_SENTIMENTS)
+    
+    return specific_sentiment, score
 
 senti_analyzer = SentimentIntensityAnalyzer()
 
@@ -210,85 +237,44 @@ def perform_sentiment_analysis(chunk, column_to_analyze):
         else:
             sentiment = 'Neutral'
 
-        # Subjectivity analysis using TextBlob
-        blob = TextBlob(chunk.iloc[i][column_to_analyze])
-        subjectivity = blob.sentiment.subjectivity
-
         corpus.append(sentiment)
-        subjectivities.append(subjectivity)
+        subjectivities.append(TextBlob(review).sentiment.subjectivity)
 
-    chunk["Predicted sentiment"] = corpus
-    chunk["Subjectivity"] = subjectivities
-    return chunk
+    return corpus, subjectivities
+
+def bulk_prediction(data, column_to_analyze):
+    sentiments, subjectivities = perform_sentiment_analysis(data, column_to_analyze)
+    data['Sentiment'] = sentiments
+    data['Subjectivity'] = subjectivities
+
+    sentiment_distribution = Counter(data['Sentiment'])
+    labels, values = zip(*sentiment_distribution.items())
+
+    fig, ax = plt.subplots()
+    ax.bar(labels, values)
+    ax.set_title("Sentiment Distribution")
+    ax.set_xlabel("Sentiment")
+    ax.set_ylabel("Count")
+
+    img = BytesIO()
+    plt.savefig(img, format="png")
+    img.seek(0)
+
+    output_csv = BytesIO()
+    data.to_csv(output_csv, index=False)
+    output_csv.seek(0)
+
+    return output_csv, img
 
 def find_text_column(data):
+    # Identify the text column in the CSV
+    text_column = None
     for column in data.columns:
-        # Check if the column seems to contain text data
-        sample_texts = data[column].dropna().astype(str).sample(n=5, random_state=0)
-        if all(sample_texts.str.len().between(10, 1000)):  # Simple check for non-empty, reasonably long text
-            return column
-    return None
-
-def bulk_prediction(data, text_column, chunk_size=300):
-    # Process data in chunks
-    chunks = pd.read_csv(BytesIO(data.to_csv(index=False)), chunksize=chunk_size)
-    processed_chunks = []
-
-    for chunk in tqdm(chunks, total=(len(data) // chunk_size) + 1):
-        # Apply sentiment analysis to each chunk
-        chunk[['Sentiment Predictions', 'Sentiment Score', 'Subjectivity']] = chunk[text_column].apply(lambda x: analyze_sentiment(x), result_type='expand')
-        processed_chunks.append(chunk)
-
-    # Concatenate all processed chunks into a single DataFrame
-    result_data = pd.concat(processed_chunks, ignore_index=True)
-
-    # Save predictions to CSV
-    predictions_csv = BytesIO()
-    result_data.to_csv(predictions_csv, index=False)
-    predictions_csv.seek(0)
-
-    # Generate sentiment distribution graph
-    graph = get_distribution_graph(result_data)
-
-    return predictions_csv, graph
-
-def analyze_sentiment(text):
-    result = hf_sentiment_pipeline(text)[0]
-    sentiment = result['label']
-    score = result['score']
-    
-    # Subjectivity analysis using TextBlob
-    blob = TextBlob(text)
-    subjectivity = blob.sentiment.subjectivity
-    
-    return pd.Series([sentiment, score, subjectivity], index=['Sentiment Predictions', 'Sentiment Score', 'Subjectivity'])
-
-def get_distribution_graph(data):
-    fig, ax = plt.subplots(figsize=(5, 5))
-    colors = ("green", "red", "blue")
-    wp = {"linewidth": 1, "edgecolor": "black"}
-    tags = data["Sentiment Predictions"].value_counts()
-    explode = (0.01, 0.01, 0.01)
-
-    tags.plot(
-        kind="pie",
-        autopct="%1.1f%%",
-        shadow=True,
-        colors=colors,
-        startangle=90,
-        wedgeprops=wp,
-        explode=explode,
-        title="Sentiment Distribution",
-        xlabel="",
-        ylabel="",
-        ax=ax
-    )
-
-    graph = BytesIO()
-    plt.savefig(graph, format="png")
-    plt.close(fig)
-
-    return graph
+        if data[column].dtype == object:
+            if data[column].str.contains(r'\w+', na=False).all():
+                text_column = column
+                break
+    return text_column
 
 if __name__ == "__main__":
-    app.run(port=5000, debug=True)
+    app.run(debug=True)
