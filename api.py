@@ -46,13 +46,6 @@ twitter_sentiment_tokenizer = AutoTokenizer.from_pretrained("cardiffnlp/twitter-
 twitter_sentiment_model = AutoModelForSequenceClassification.from_pretrained("cardiffnlp/twitter-roberta-base-sentiment")
 twitter_sentiment_pipeline = pipeline("sentiment-analysis", model=twitter_sentiment_model, tokenizer=twitter_sentiment_tokenizer)
 
-# Define the specific sentiment mapping
-specific_sentiment_mapping = {
-    "Positive": ["joy", "surprise", "optimistic", "content", "trust"],
-    "Negative": ["anger", "disgust", "fear", "sadness"],
-    "Neutral": ["neutral", "curiosity"]
-}
-
 # Define keywords for aspect-based sentiment analysis
 aspect_keywords = {
     'Delivery': ['delivery', 'shipping', 'shipment', 'delivered'],
@@ -105,11 +98,11 @@ def predict():
         elif "text" in request.json:
             # Single string prediction
             text_input = request.json["text"]
-            aspect = identify_aspect(text_input)
+            aspects = identify_aspect(text_input)
             general_sentiment, specific_sentiment, specific_score, subjectivity = single_prediction(text_input)
 
             return jsonify({
-                "aspect": aspect,
+                "aspects": aspects,
                 "general_sentiment": general_sentiment,
                 "specific_sentiment": specific_sentiment,
                 "specific_score": specific_score,
@@ -134,13 +127,19 @@ NEUTRAL_SENTIMENTS = [
 ]
 
 def identify_aspect(text):
-    aspect = "General"
+    aspects = []
     for key, keywords in aspect_keywords.items():
         for keyword in keywords:
             if keyword.lower() in text.lower():
-                aspect = key
+                aspects.append(key)
                 break
-    return aspect
+    
+    if not aspects:
+        return "General"
+    elif len(aspects) == 1:
+        return aspects[0]
+    else:
+        return ", ".join(aspects)
 
 def single_prediction(text_input):
     # Preprocess the input text for XGBoost
@@ -165,7 +164,7 @@ def single_prediction(text_input):
     else:
         xgboost_sentiment = 'NEUTRAL'
 
-    # Combine predictions (example: weighted average of scores)
+    # Combine predictions 
     combined_score = (hf_score + xgboost_proba) / 2
     if hf_sentiment == xgboost_sentiment:
         general_sentiment = hf_sentiment

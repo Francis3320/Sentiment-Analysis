@@ -182,11 +182,10 @@
           .then(response => response.json())
           .then(data => {
             generalSentimentResult.innerHTML = "General Sentiment: " + data.general_sentiment;
-            generalSentimentScore.innerHTML = "General Sentiment Score: " + data.general_score;
             specificSentimentResult.innerHTML = "Specific Sentiment: " + data.specific_sentiment;
-            specificSentimentScore.innerHTML = "Specific Sentiment Score: " + data.specific_score;
+            specificSentimentScore.innerHTML = "Sentiment Score: " + data.specific_score;
             subjectivityResult.innerHTML = "Subjectivity: " + data.subjectivity;
-            aspectResult.innerHTML = "Aspect: " + data.aspect; 
+            aspectResult.innerHTML = "Aspect: " + data.aspects; 
           })
           .finally(() => {
             // Hide the loading spinner
